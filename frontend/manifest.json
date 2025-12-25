@@ -1,12 +1,10 @@
 {
-  "name": "Banco Imobiliário",
-  "short_name": "Banco Jogo",
-  "description": "Jogue Banco Imobiliário online com seus amigos",
+  "name": "Banco Imobiliário App",
+  "short_name": "BancoApp",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#f5f5f7",
+  "background_color": "#ffffff",
   "theme_color": "#820ad1",
-  "orientation": "portrait-primary",
   "icons": [
     {
       "src": "./icon-192.svg",
