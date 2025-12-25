@@ -4,8 +4,7 @@ import { Server } from "socket.io";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
-import { Low } from "lowdb";
-import { JSONFile } from "lowdb/node";  // Import correto para lowdb v5
+import { Low, JSONFile } from "lowdb";
 import { nanoid } from "nanoid";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -15,77 +14,49 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Configuração DB
+// Banco de dados simples com LowDB
 const file = path.join(__dirname, "db.json");
 const adapter = new JSONFile(file);
 const db = new Low(adapter);
 
 async function initDB() {
   await db.read();
-  db.data = db.data || { users: [], transactions: [], notifications: [] };
+  db.data = db.data || { users: [], transactions: [] };
   await db.write();
 }
 initDB();
 
-function now() { return new Date().toISOString(); }
+// Salas de jogo em memória
+const salas = {};
 
-// Servir frontend
-app.use(express.static(path.join(__dirname, "../frontend")));
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "../frontend/index.html"));
-});
-
-// Rotas simples de teste
-app.get("/api/users", async (req, res) => {
-  await db.read();
-  res.json(db.data.users);
-});
-
-// Socket.io
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-const salas = {};
-
+// Entrar na sala
 io.on("connection", (socket) => {
   socket.on("entrarSala", ({ sala, nome }) => {
     socket.join(sala);
     if (!salas[sala]) salas[sala] = { jogadores: {}, extrato: [] };
-    salas[sala].jogadores[socket.id] = { nome, saldo: 15000, faliu: false };
+
+    salas[sala].jogadores[socket.id] = { nome, saldo: 15000, faliu: false, online: true };
     io.to(sala).emit("estadoSala", salas[sala]);
   });
 
+  // Pagar outro jogador
   socket.on("pagar", ({ sala, de, para, valor, tipo }) => {
     const salaAtual = salas[sala];
     if (!salaAtual) return;
-
     const pagador = salaAtual.jogadores[de];
     const recebedor = salaAtual.jogadores[para];
     if (!pagador || !recebedor) return;
-
-    if (pagador.saldo < valor) {
-      io.to(de).emit("erro", "Saldo insuficiente");
-      return;
-    }
+    if (pagador.saldo < valor) return; // saldo insuficiente
 
     pagador.saldo -= valor;
     recebedor.saldo += valor;
 
-    salaAtual.extrato.push({
-      de: pagador.nome,
-      para: recebedor.nome,
-      valor,
-      tipo,
-      data: now()
-    });
-
-    if (pagador.saldo <= 0) {
-      pagador.faliu = true;
-      io.to(de).emit("faliu");
-    }
-
+    salaAtual.extrato.push({ de: pagador.nome, para: recebedor.nome, valor, tipo, data: new Date().toISOString() });
     io.to(sala).emit("estadoSala", salaAtual);
-    io.to(para).emit("recebido", { valor, tipo, de: pagador.nome });
+    io.to(para).emit("recebido", { de: pagador.nome, valor, tipo });
   });
 
   socket.on("disconnect", () => {
@@ -99,4 +70,4 @@ io.on("connection", (socket) => {
 });
 
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => console.log(`Rodando na porta ${PORT}`));
+server.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
