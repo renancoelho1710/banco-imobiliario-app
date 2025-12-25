@@ -1,17 +1,15 @@
 {
-  "name": "banco-backend",
+  "name": "banco-imobiliario-backend",
   "version": "1.0.0",
   "type": "module",
-  "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
-    "body-parser": "^1.20.2",
-    "lowdb": "^5.0.4",
-    "nanoid": "^4.0.2",
-    "socket.io": "^4.7.1"
+    "socket.io": "^4.7.2",
+    "lowdb": "^5.0.5",
+    "nanoid": "^4.0.2"
   }
 }
