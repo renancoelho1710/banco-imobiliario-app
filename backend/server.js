@@ -8,13 +8,22 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-import { Low } from "lowdb";
-import { JSONFile } from "lowdb/node"; // corrigido para v6
+import { Low } from 'lowdb'
+import { JSONFile } from 'lowdb/node'  // versão correta pro Node ESM
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-// DB simples
-const db = new Low(new JSONFile(path.join(__dirname, "db.json")));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const file = path.join(__dirname, 'db.json');  // arquivo do DB
+const adapter = new JSONFile(file);
+const db = new Low(adapter);
+
+// Dados iniciais
 await db.read();
-db.data ||= { salas: {} };
+db.data ||= { salas: {} };  // se estiver vazio, cria estrutura inicial
+await db.write();
 
 const app = express();
 app.use(cors());
