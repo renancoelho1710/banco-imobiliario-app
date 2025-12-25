@@ -1,15 +1,20 @@
 import express from "express";
+import http from "http";
+import { Server } from "socket.io";
 import cors from "cors";
-import bodyParser from "body-parser";
+import path from "path";
+import { fileURLToPath } from "url";
 import { Low, JSONFile } from "lowdb";
 import { nanoid } from "nanoid";
-import path from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json());
 
-const file = path.join("./db.json");
+const file = path.join(__dirname, "db.json");
 const adapter = new JSONFile(file);
 const db = new Low(adapter);
 
@@ -20,109 +25,41 @@ async function initDB() {
 }
 initDB();
 
-function now() { return new Date().toISOString(); }
-
-// Middleware: atualizar lastActive
-app.use(async (req, res, next) => {
+// API mínima
+app.get("/api/users", async (req, res) => {
   await db.read();
-  if (req.body && req.body._userId) {
-    const u = db.data.users.find(x => x.id === req.body._userId);
-    if (u) { u.lastActive = Date.now(); await db.write(); }
-  }
-  next();
+  res.json(db.data.users);
 });
 
-// Criar usuário
-app.post('/api/register', async (req, res) => {
-  const { name, password, role, startingAmount } = req.body;
-  await db.read();
-  const exists = db.data.users.find(u => u.name === name && u.role === role && !u.finalized);
-  if (exists) return res.status(400).json({ error: 'Nome já em uso nessa partida para esse papel' });
-  const user = {
-    id: nanoid(),
-    name,
-    password,
-    role,
-    balance: Number(startingAmount || 0),
-    jailTax: 50,
-    lastActive: Date.now(),
-    finalized: false,
-    bankrupt: false
-  };
-  db.data.users.push(user);
-  await db.write();
-  res.json({ user });
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: "*" } });
+
+const salas = {};
+
+io.on("connection", (socket) => {
+  socket.on("entrarSala", ({ sala, nome }) => {
+    socket.join(sala);
+    if (!salas[sala]) salas[sala] = { jogadores: {}, extrato: [] };
+    salas[sala].jogadores[socket.id] = { nome, saldo: 15000, faliu: false };
+    io.to(sala).emit("estadoSala", salas[sala]);
+  });
+
+  socket.on("pagar", ({ sala, de, para, valor, tipo }) => {
+    const s = salas[sala]; if (!s) return;
+    const pagador = s.jogadores[de]; const recebedor = s.jogadores[para]; if (!pagador || !recebedor) return;
+    if (pagador.saldo < valor) { io.to(de).emit("erro", "Saldo insuficiente"); return; }
+    pagador.saldo -= valor; recebedor.saldo += valor;
+    s.extrato.push({ de: pagador.nome, para: recebedor.nome, valor, tipo, data: new Date().toISOString() });
+    if (pagador.saldo <= 0) { pagador.faliu = true; io.to(de).emit("faliu"); }
+    io.to(sala).emit("estadoSala", s);
+    io.to(para).emit("recebido", { valor, tipo, de: pagador.nome });
+  });
+
+  socket.on("disconnect", () => {
+    for (const s in salas) {
+      if (salas[s].jogadores[socket.id]) { delete salas[s].jogadores[socket.id]; io.to(s).emit("estadoSala", salas[s]); }
+    }
+  });
 });
 
-// Login
-app.post('/api/login', async (req, res) => {
-  const { name, password, role } = req.body;
-  await db.read();
-  const user = db.data.users.find(u => u.name === name && u.password === password && u.role === role && !u.finalized);
-  if (!user) return res.status(401).json({ error: 'Credenciais inválidas ou partida finalizada' });
-  res.json({ user });
-});
-
-// Listar usuários
-app.get('/api/users', async (req, res) => {
-  await db.read();
-  res.json(db.data.users.filter(u => !u.finalized));
-});
-
-// Properties
-app.get('/api/properties', async (req, res) => {
-  await db.read();
-  res.json(db.data.properties || []);
-});
-app.post('/api/properties', async (req, res) => {
-  const { name, type, houses, rent, ownerId } = req.body;
-  await db.read();
-  const prop = { id: nanoid(), name, type, houses: Number(houses), rent: Number(rent), ownerId: ownerId || null };
-  db.data.properties.push(prop);
-  await db.write();
-  res.json(prop);
-});
-
-// Pagamentos
-app.post('/api/payments/request', async (req, res) => {
-  const { toUserId, amount, reason, fromUserId } = req.body;
-  await db.read();
-  const payment = {
-    id: nanoid(),
-    toUserId,
-    fromUserId: fromUserId || null,
-    amount: Number(amount),
-    reason: reason || 'payment',
-    createdAt: Date.now(),
-    claimed: false
-  };
-  db.data.payments.push(payment);
-  db.data.transactions.push({ id: nanoid(), type: 'request', paymentId: payment.id, toUserId, amount: payment.amount, reason: payment.reason, createdAt: now() });
-  await db.write();
-  res.json({ paymentId: payment.id, qrPayload: JSON.stringify({ type: 'payment_request', paymentId: payment.id }) });
-});
-
-app.post('/api/payments/claim', async (req, res) => {
-  const { paymentId, payerId } = req.body;
-  await db.read();
-  const payment = db.data.payments.find(p => p.id === paymentId);
-  if (!payment) return res.status(404).json({ error: 'Pagamento não encontrado' });
-  if (payment.claimed) return res.status(400).json({ error: 'Pagamento já reclamado' });
-  const payer = db.data.users.find(u => u.id === payerId && !u.finalized);
-  const recipient = db.data.users.find(u => u.id === payment.toUserId && !u.finalized);
-  if (!payer || !recipient) return res.status(404).json({ error: 'Usuário não encontrado' });
-  if (payer.balance < payment.amount) return res.status(400).json({ error: 'Saldo insuficiente' });
-
-  payer.balance -= payment.amount;
-  recipient.balance += payment.amount;
-  payment.claimed = true;
-  payment.payerId = payerId;
-  payment.claimedAt = Date.now();
-
-  db.data.transactions.push({ id: nanoid(), type: 'payment', paymentId: payment.id, from: payerId, to: recipient.id, amount: payment.amount, reason: payment.reason, createdAt: now() });
-  await db.write();
-  res.json({ ok: true, payment, payer, recipient });
-});
-
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`Backend rodando em http://localhost:${PORT}`));
+server.listen(4000, () => console.log("Backend rodando na porta 4000"));
