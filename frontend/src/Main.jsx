@@ -1,4 +1,4 @@
-const socket = io("http://SEU_BACKEND:3001"); // troca pelo seu backend
+const socket = io("https://banco-imobiliario-app.onrender.com");
 
 function App() {
   const [nome, setNome] = React.useState("");
