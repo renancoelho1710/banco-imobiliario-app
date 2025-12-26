@@ -2,27 +2,26 @@ import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
+import { Low } from "lowdb";
+import { JSONFile } from "lowdb/node";  // versão correta pro Node ESM
 
+// Configurar __filename e __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-import { Low } from 'lowdb'
-import { JSONFile } from 'lowdb/node'  // versão correta pro Node ESM
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const file = path.join(__dirname, 'db.json');  // arquivo do DB
+// Configurar database
+const file = path.join(__dirname, "db.json");
 const adapter = new JSONFile(file);
 const db = new Low(adapter);
 
-// Dados iniciais
+// Ler dados e inicializar se necessário
 await db.read();
-db.data ||= { salas: {} };  // se estiver vazio, cria estrutura inicial
+db.data ||= { salas: {} };
 await db.write();
 
+// Configurar Express
 const app = express();
 app.use(cors());
 app.use(express.static(path.join(__dirname, "../frontend")));
@@ -31,6 +30,7 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "../frontend/index.html"));
 });
 
+// Configurar Socket.io
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
@@ -67,7 +67,13 @@ io.on("connection", (socket) => {
     pagador.saldo -= valor;
     recebedor.saldo += valor;
 
-    salaAtual.extrato.push({ de: pagador.nome, para: recebedor.nome, valor, tipo, data: new Date().toISOString() });
+    salaAtual.extrato.push({
+      de: pagador.nome,
+      para: recebedor.nome,
+      valor,
+      tipo,
+      data: new Date().toISOString()
+    });
 
     if (pagador.saldo <= 0) io.to(de).emit("faliu");
 
