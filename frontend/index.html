@@ -1,16 +1,29 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Banco Imobiliário App</title>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Banco Imobiliário App</title>
 
-    <link rel="manifest" href="./manifest.json" />
-    <link rel="icon" type="image/svg+xml" href="./icon-192.svg" sizes="192x192" />
-    <link rel="apple-touch-icon" href="./icon-512.svg" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="./src/Main.jsx"></script>
-  </body>
+  <!-- Manifest do app -->
+  <link rel="manifest" href="./manifest.json" />
+
+  <!-- Ícones -->
+  <link rel="icon" type="image/svg+xml" href="./icon-192.svg" sizes="192x192" />
+  <link rel="apple-touch-icon" href="./icon-512.svg" />
+
+  <!-- React e ReactDOM via CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <!-- Socket.io cliente -->
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js" integrity="sha384-bnF6f1xNqfRgk+mm7xBk4H/NurRn3ZVHZfpUK6G5aO5XoXoW/wvBJuX5STh5B3eE" crossorigin="anonymous"></script>
+  <!-- Babel pra JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" src="./src/Main.js"></script>
+</body>
 </html>
