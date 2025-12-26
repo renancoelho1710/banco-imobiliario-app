@@ -5,7 +5,7 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import { Low } from "lowdb";
-import { JSONFile } from "lowdb/node";  // versão correta pro Node ESM
+import { JSONFile } from "lowdb/node"; // Node ESM
 
 // Configurar __filename e __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -14,14 +14,16 @@ const __dirname = path.dirname(__filename);
 // Configurar database
 const file = path.join(__dirname, "db.json");
 const adapter = new JSONFile(file);
-const db = new Low(adapter);
+
+// Passar **objeto inicial** direto pro Low
+const db = new Low(adapter, { salas: {} });
 
 // Ler dados e inicializar se necessário
 await db.read();
 db.data ||= { salas: {} };
 await db.write();
 
-// Configurar Express
+// Express
 const app = express();
 app.use(cors());
 app.use(express.static(path.join(__dirname, "../frontend")));
@@ -30,7 +32,7 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "../frontend/index.html"));
 });
 
-// Configurar Socket.io
+// Socket.io
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
@@ -42,7 +44,7 @@ io.on("connection", (socket) => {
       db.data.salas[sala] = { jogadores: {}, extrato: [] };
     }
 
-    db.data.salas[sala].jogadores[socket.id] = {
+    db.data.salas[socket.id] = {
       nome,
       saldo: 15000,
       faliu: false
